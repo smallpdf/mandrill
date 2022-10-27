@@ -48,7 +48,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -313,7 +313,7 @@ func (c *Client) sendApiRequest(data interface{}, path string) (body []byte, err
 	}
 
 	defer resp.Body.Close()
-	body, err = ioutil.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return body, err
 	}
@@ -339,14 +339,14 @@ func (m *Message) AddRecipient(email string, name string, sendType string) {
 func ConvertMapToVariables(i interface{}) []*Variable {
 	imap := map[string]interface{}{}
 
-	switch i.(type) {
+	switch v := i.(type) {
 	// Handle older API for passing just map[string]string
 	case map[string]string:
-		for k, v := range i.(map[string]string) {
+		for k, v := range v {
 			imap[k] = v
 		}
 	case map[string]interface{}:
-		imap, _ = i.(map[string]interface{})
+		imap = v
 	default:
 		return []*Variable{}
 	}
