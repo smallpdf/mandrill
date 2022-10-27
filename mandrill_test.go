@@ -22,7 +22,6 @@ func refute(t *testing.T, a interface{}, b interface{}) {
 }
 
 func testTools(code int, body string) (*httptest.Server, *Client) {
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(code)
 		w.Header().Set("Content-Type", "application/json")

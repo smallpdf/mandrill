@@ -237,7 +237,6 @@ func (c *Client) Ping() (pong string, err error) {
 
 // MessagesSend sends a message via an API client
 func (c *Client) MessagesSend(message *Message) (responses []*Response, err error) {
-
 	var data struct {
 		Key     string   `json:"key"`
 		Message *Message `json:"message,omitempty"`
@@ -260,7 +259,6 @@ func (c *Client) MessagesSend(message *Message) (responses []*Response, err erro
 
 // MessagesSendTemplate sends a message using a Mandrill template
 func (c *Client) MessagesSendTemplate(message *Message, templateName string, contents interface{}) (responses []*Response, err error) {
-
 	var data struct {
 		Key             string      `json:"key"`
 		TemplateName    string      `json:"template_name,omitempty"`
@@ -286,7 +284,6 @@ func (c *Client) MessagesSendTemplate(message *Message, templateName string, con
 }
 
 func (c *Client) sendMessagePayload(data interface{}, path string) (responses []*Response, err error) {
-
 	if c.Key == "SANDBOX_SUCCESS" {
 		return []*Response{}, nil
 	}
