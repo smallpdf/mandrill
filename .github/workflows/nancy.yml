@@ -1,0 +1,67 @@
+name: Sonatype Nancy - Every week
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Set up Go 1.x in order to write go.list file
+        uses: actions/setup-go@v2
+        with:
+          go-version: ^1.15
+
+      - name: Install Sonatype Nancy
+        run: wget https://github.com/sonatype-nexus-community/nancy/releases/download/v1.0.36/nancy-v1.0.36-linux-amd64 && mv nancy-v1.0.36-linux-amd64 nancy && chmod +x nancy
+
+      - name: Generate json output
+        run: echo $(go list -json -deps | ./nancy sleuth -o json > /tmp/results.json)
+
+      - name: Check if there are vulnerable packages
+        id: run_nancy
+        run: |
+          cat >> pretty.py <<EOL
+          import json
+          import sys
+          with open('/tmp/results.json') as json_file:
+              data1 = json.loads(json_file.read())
+          if 'audited' not in data1:
+              print('\x1b[1;32;49m' + 'No vulnerable packages 🎉' + '\x1b[0m')
+              sys.exit(0)
+          vulnerable = False
+          for item in data1['audited']:
+              if len(item['Vulnerabilities']) == 0:
+                  continue
+              print('\x1b[1;31;49m' + '{}'.format(item['Coordinates']) + '\x1b[0m')
+              for elem in item['Vulnerabilities']:
+                  if float(elem['CvssScore']) >= 7.5:
+                      print('\x1b[1;31;49m' + '🐛 Sonatype OSS Index ID: {}'.format(elem['ID']) + '\x1b[0m')
+                  elif float(elem['CvssScore']) < 7.5 and float(elem['CvssScore']) >= 4.5:
+                      print('\x1b[1;33;49m' + '🐛 Sonatype OSS Index ID: {}'.format(elem['ID']) + '\x1b[0m')
+                  else:
+                      print('🐛 Sonatype OSS Index ID: {}'.format(elem['ID']))
+                  print('🆔 CVE: {}'.format(elem['Cve']))
+                  print('⚠️ CVSS: {}'.format(elem['CvssVector']))
+                  print("📋 Description: {}".format(elem['Description']))
+                  print("👉 More info: https://ossindex.sonatype.org/vulnerability/{}\n".format(elem['ID']))
+                  vulnerable = True
+          if vulnerable:
+              sys.exit(1)
+          print('\x1b[1;32;49m' + 'No vulnerable packages 🎉' + '\x1b[0m')
+          sys.exit(0)
+          EOL
+          python3 pretty.py
+
+      - name: Send slack message
+        uses: slackapi/slack-github-action@v1.14.0
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          MESSAGE: ${{ join(steps.run_nancy.outputs.*, '\n')  }}
+          BUILD_URL: "https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}"
+        with:
+          payload: '{"message":"$MESSAGE", "url":"$BUILD_URL"}'

@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Belgrade"
+    assignees:
+      - "armatorix"
+    reviewers:
+      - "armatorix"
+    target-branch: "master"
