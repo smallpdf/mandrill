@@ -46,6 +46,7 @@ package mandrill
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -226,7 +227,7 @@ func (c *Client) Ping() (pong string, err error) {
 
 	data.Key = c.Key
 
-	body, err := c.sendApiRequest(data, "users/ping.json")
+	body, err := c.sendApiRequest(context.Background(), data, "users/ping.json")
 	if err != nil {
 		return pong, err
 	}
@@ -237,6 +238,11 @@ func (c *Client) Ping() (pong string, err error) {
 
 // MessagesSend sends a message via an API client
 func (c *Client) MessagesSend(message *Message) (responses []*Response, err error) {
+	return c.MessagesSendWithContext(context.Background(), message)
+}
+
+// MessagesSend sends a message via an API client
+func (c *Client) MessagesSendWithContext(ctx context.Context, message *Message) (responses []*Response, err error) {
 	var data struct {
 		Key     string   `json:"key"`
 		Message *Message `json:"message,omitempty"`
@@ -254,11 +260,16 @@ func (c *Client) MessagesSend(message *Message) (responses []*Response, err erro
 	data.IPPool = message.IPPool
 	data.SendAt = message.SendAt
 
-	return c.sendMessagePayload(data, "messages/send.json")
+	return c.sendMessagePayload(ctx, data, "messages/send.json")
 }
 
 // MessagesSendTemplate sends a message using a Mandrill template
 func (c *Client) MessagesSendTemplate(message *Message, templateName string, contents interface{}) (responses []*Response, err error) {
+	return c.MessagesSendTemplateWithContext(context.Background(), message, templateName, contents)
+}
+
+// MessagesSendTemplate sends a message using a Mandrill template
+func (c *Client) MessagesSendTemplateWithContext(ctx context.Context, message *Message, templateName string, contents interface{}) (responses []*Response, err error) {
 	var data struct {
 		Key             string      `json:"key"`
 		TemplateName    string      `json:"template_name,omitempty"`
@@ -280,10 +291,10 @@ func (c *Client) MessagesSendTemplate(message *Message, templateName string, con
 	data.IPPool = message.IPPool
 	data.SendAt = message.SendAt
 
-	return c.sendMessagePayload(data, "messages/send-template.json")
+	return c.sendMessagePayload(ctx, data, "messages/send-template.json")
 }
 
-func (c *Client) sendMessagePayload(data interface{}, path string) (responses []*Response, err error) {
+func (c *Client) sendMessagePayload(ctx context.Context, data interface{}, path string) (responses []*Response, err error) {
 	if c.Key == "SANDBOX_SUCCESS" {
 		return []*Response{}, nil
 	}
@@ -292,7 +303,7 @@ func (c *Client) sendMessagePayload(data interface{}, path string) (responses []
 		return nil, errors.New("SANDBOX_ERROR")
 	}
 
-	body, err := c.sendApiRequest(data, path)
+	body, err := c.sendApiRequest(ctx, data, path)
 	if err != nil {
 		return responses, err
 	}
@@ -301,15 +312,21 @@ func (c *Client) sendMessagePayload(data interface{}, path string) (responses []
 	return responses, err
 }
 
-func (c *Client) sendApiRequest(data interface{}, path string) (body []byte, err error) {
+func (c *Client) sendApiRequest(ctx context.Context, data interface{}, path string) (body []byte, err error) {
 	payload, _ := json.Marshal(data)
 
-	resp, err := c.HTTPClient.Post(c.BaseURL+path, "application/json", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+path, bytes.NewReader(payload))
 	if err != nil {
-		return body, err
+		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
 
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
 	defer resp.Body.Close()
+
 	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return body, err
